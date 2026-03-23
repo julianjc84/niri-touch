@@ -4,6 +4,9 @@ members = [
     "niri-ipc",
     "niri-visual-tests",
 ]
+exclude = [
+    "niri-touch-settings",
+]
 
 [workspace.package]
 version = "25.11.0"
