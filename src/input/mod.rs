@@ -3136,6 +3136,8 @@ impl State {
                                 allow_when_locked: false,
                                 allow_inhibiting: false,
                                 hotkey_overlay_title: None,
+                        sensitivity: None,
+                        natural_scroll: false,
                             });
                             let bind_right = Some(Bind {
                                 key: Key {
@@ -3148,6 +3150,8 @@ impl State {
                                 allow_when_locked: false,
                                 allow_inhibiting: false,
                                 hotkey_overlay_title: None,
+                        sensitivity: None,
+                        natural_scroll: false,
                             });
                             (bind_left, bind_right)
                         } else {
@@ -3205,6 +3209,8 @@ impl State {
                             allow_when_locked: false,
                             allow_inhibiting: false,
                             hotkey_overlay_title: None,
+                        sensitivity: None,
+                        natural_scroll: false,
                         });
                         let bind_down = Some(Bind {
                             key: Key {
@@ -3217,6 +3223,8 @@ impl State {
                             allow_when_locked: false,
                             allow_inhibiting: false,
                             hotkey_overlay_title: None,
+                        sensitivity: None,
+                        natural_scroll: false,
                         });
                         (bind_up, bind_down)
                     } else if should_handle_in_overview && modifiers == Modifiers::SHIFT {
@@ -3231,6 +3239,8 @@ impl State {
                             allow_when_locked: false,
                             allow_inhibiting: false,
                             hotkey_overlay_title: None,
+                        sensitivity: None,
+                        natural_scroll: false,
                         });
                         let bind_down = Some(Bind {
                             key: Key {
@@ -3243,6 +3253,8 @@ impl State {
                             allow_when_locked: false,
                             allow_inhibiting: false,
                             hotkey_overlay_title: None,
+                        sensitivity: None,
+                        natural_scroll: false,
                         });
                         (bind_up, bind_down)
                     } else {
@@ -4264,6 +4276,8 @@ fn should_intercept_key<'a>(
                     // inhibited.
                     allow_inhibiting: false,
                     hotkey_overlay_title: None,
+                        sensitivity: None,
+                        natural_scroll: false,
                 });
             }
         }
@@ -4330,6 +4344,8 @@ fn find_bind<'a>(
             // Hardcoded binds must never be inhibited.
             allow_inhibiting: false,
             hotkey_overlay_title: None,
+                        sensitivity: None,
+                        natural_scroll: false,
         });
     }
 
@@ -4337,7 +4353,7 @@ fn find_bind<'a>(
     find_configured_bind(bindings, mod_key, trigger, mods)
 }
 
-fn find_configured_bind<'a>(
+pub(super) fn find_configured_bind<'a>(
     bindings: impl IntoIterator<Item = &'a Bind>,
     mod_key: ModKey,
     trigger: Trigger,
@@ -4568,6 +4584,8 @@ fn hardcoded_overview_bind(raw: Keysym, mods: ModifiersState) -> Option<Bind> {
         allow_when_locked: false,
         allow_inhibiting: false,
         hotkey_overlay_title: None,
+                        sensitivity: None,
+                        natural_scroll: false,
     })
 }
 
@@ -5029,6 +5047,8 @@ mod tests {
             allow_when_locked: false,
             allow_inhibiting: true,
             hotkey_overlay_title: None,
+                        sensitivity: None,
+                        natural_scroll: false,
         }]);
 
         let comp_mod = ModKey::Super;
@@ -5215,6 +5235,8 @@ mod tests {
                 allow_when_locked: false,
                 allow_inhibiting: true,
                 hotkey_overlay_title: None,
+                        sensitivity: None,
+                        natural_scroll: false,
             },
             Bind {
                 key: Key {
@@ -5227,6 +5249,8 @@ mod tests {
                 allow_when_locked: false,
                 allow_inhibiting: true,
                 hotkey_overlay_title: None,
+                        sensitivity: None,
+                        natural_scroll: false,
             },
             Bind {
                 key: Key {
@@ -5239,6 +5263,8 @@ mod tests {
                 allow_when_locked: false,
                 allow_inhibiting: true,
                 hotkey_overlay_title: None,
+                        sensitivity: None,
+                        natural_scroll: false,
             },
             Bind {
                 key: Key {
@@ -5251,6 +5277,8 @@ mod tests {
                 allow_when_locked: false,
                 allow_inhibiting: true,
                 hotkey_overlay_title: None,
+                        sensitivity: None,
+                        natural_scroll: false,
             },
             Bind {
                 key: Key {
@@ -5263,6 +5291,8 @@ mod tests {
                 allow_when_locked: false,
                 allow_inhibiting: true,
                 hotkey_overlay_title: None,
+                        sensitivity: None,
+                        natural_scroll: false,
             },
         ]);
 
