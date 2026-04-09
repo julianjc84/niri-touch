@@ -2406,6 +2406,9 @@ impl State {
                     self.niri.queue_redraw_mru_output();
                 }
             }
+            Action::Noop => {
+                // Intentionally does nothing. Used with tag for IPC-only binds.
+            }
         }
     }
 
@@ -3139,6 +3142,7 @@ impl State {
                                 hotkey_overlay_title: None,
                         sensitivity: None,
                         natural_scroll: false,
+                        tag: None,
                             });
                             let bind_right = Some(Bind {
                                 key: Key {
@@ -3153,6 +3157,7 @@ impl State {
                                 hotkey_overlay_title: None,
                         sensitivity: None,
                         natural_scroll: false,
+                        tag: None,
                             });
                             (bind_left, bind_right)
                         } else {
@@ -3212,6 +3217,7 @@ impl State {
                             hotkey_overlay_title: None,
                         sensitivity: None,
                         natural_scroll: false,
+                        tag: None,
                         });
                         let bind_down = Some(Bind {
                             key: Key {
@@ -3226,6 +3232,7 @@ impl State {
                             hotkey_overlay_title: None,
                         sensitivity: None,
                         natural_scroll: false,
+                        tag: None,
                         });
                         (bind_up, bind_down)
                     } else if should_handle_in_overview && modifiers == Modifiers::SHIFT {
@@ -3242,6 +3249,7 @@ impl State {
                             hotkey_overlay_title: None,
                         sensitivity: None,
                         natural_scroll: false,
+                        tag: None,
                         });
                         let bind_down = Some(Bind {
                             key: Key {
@@ -3256,6 +3264,7 @@ impl State {
                             hotkey_overlay_title: None,
                         sensitivity: None,
                         natural_scroll: false,
+                        tag: None,
                         });
                         (bind_up, bind_down)
                     } else {
@@ -3892,6 +3901,18 @@ impl State {
                     if let Some(bind) = bind {
                         let kind = continuous_gesture_kind(&bind.action);
                         let sensitivity = bind.sensitivity.unwrap_or(1.0);
+                        let tag = bind.tag.clone();
+
+                        // Emit IPC GestureBegin if this bind has a tag.
+                        if let Some(ref tag) = tag {
+                            let trigger_name = touchpad_trigger_ipc_name(trigger);
+                            self.ipc_gesture_begin(
+                                tag.clone(),
+                                trigger_name,
+                                fingers as u8,
+                                kind.is_some(),
+                            );
+                        }
 
                         if let Some(kind) = kind {
                             // Continuous gesture — begin animation.
@@ -3928,10 +3949,16 @@ impl State {
                                     }
                                 }
                             }
-                            self.niri.gesture_swipe_bind = Some((kind, sensitivity));
+                            self.niri.gesture_swipe_bind = Some((kind, sensitivity, tag));
                         } else {
                             // Discrete action — fire once.
-                            self.handle_bind(bind);
+                            if !matches!(bind.action, Action::Noop) {
+                                self.handle_bind(bind);
+                            }
+                            // Emit immediate GestureEnd for discrete gestures.
+                            if let Some(ref tag) = tag {
+                                self.ipc_gesture_end(tag.clone(), true);
+                            }
                         }
                         return;
                     }
@@ -3942,7 +3969,8 @@ impl State {
         let timestamp = Duration::from_micros(event.time());
 
         // Feed continuous gesture with bind sensitivity.
-        if let Some((kind, sensitivity)) = self.niri.gesture_swipe_bind {
+        if let Some((kind, sensitivity, ref tag)) = self.niri.gesture_swipe_bind {
+            let tag = tag.clone();
             let mut handled = false;
             match kind {
                 ContinuousGestureKind::WorkspaceSwitch => {
@@ -3979,7 +4007,14 @@ impl State {
                     }
                 }
             }
+            // Emit IPC GestureProgress for tagged touchpad gestures.
             if handled {
+                if let Some(tag) = tag {
+                    let ts_ms = timestamp.as_millis() as u32;
+                    self.ipc_gesture_progress(
+                        tag, 0.0, delta_x, delta_y, ts_ms,
+                    );
+                }
                 return;
             }
         }
@@ -4001,7 +4036,8 @@ impl State {
 
     fn on_gesture_swipe_end<I: InputBackend>(&mut self, event: I::GestureSwipeEndEvent) {
         self.niri.gesture_swipe_3f_cumulative = None;
-        self.niri.gesture_swipe_bind = None;
+        // Take the bind to extract the tag before clearing.
+        let swipe_tag = self.niri.gesture_swipe_bind.take().and_then(|(_, _, tag)| tag);
 
         let mut handled = false;
         let res = self.niri.layout.workspace_switch_gesture_end(Some(true));
@@ -4020,6 +4056,11 @@ impl State {
         if res {
             self.niri.queue_redraw_all();
             handled = true;
+        }
+
+        // Emit IPC GestureEnd for tagged touchpad gestures.
+        if let Some(tag) = swipe_tag {
+            self.ipc_gesture_end(tag, true);
         }
 
         if handled {
@@ -4262,6 +4303,7 @@ fn should_intercept_key<'a>(
                     hotkey_overlay_title: None,
                         sensitivity: None,
                         natural_scroll: false,
+                        tag: None,
                 });
             }
         }
@@ -4330,6 +4372,7 @@ fn find_bind<'a>(
             hotkey_overlay_title: None,
                         sensitivity: None,
                         natural_scroll: false,
+                        tag: None,
         });
     }
 
@@ -4570,6 +4613,7 @@ fn hardcoded_overview_bind(raw: Keysym, mods: ModifiersState) -> Option<Bind> {
         hotkey_overlay_title: None,
                         sensitivity: None,
                         natural_scroll: false,
+                        tag: None,
     })
 }
 
@@ -4941,6 +4985,26 @@ fn swipe_trigger(fingers: usize, is_horizontal: bool, cx: f64, cy: f64) -> Optio
     Some(trigger)
 }
 
+/// Convert a touchpad Trigger to its KDL config name for IPC events.
+fn touchpad_trigger_ipc_name(trigger: Trigger) -> String {
+    match trigger {
+        Trigger::TouchpadSwipe3Up => "TouchpadSwipe3Up",
+        Trigger::TouchpadSwipe3Down => "TouchpadSwipe3Down",
+        Trigger::TouchpadSwipe3Left => "TouchpadSwipe3Left",
+        Trigger::TouchpadSwipe3Right => "TouchpadSwipe3Right",
+        Trigger::TouchpadSwipe4Up => "TouchpadSwipe4Up",
+        Trigger::TouchpadSwipe4Down => "TouchpadSwipe4Down",
+        Trigger::TouchpadSwipe4Left => "TouchpadSwipe4Left",
+        Trigger::TouchpadSwipe4Right => "TouchpadSwipe4Right",
+        Trigger::TouchpadSwipe5Up => "TouchpadSwipe5Up",
+        Trigger::TouchpadSwipe5Down => "TouchpadSwipe5Down",
+        Trigger::TouchpadSwipe5Left => "TouchpadSwipe5Left",
+        Trigger::TouchpadSwipe5Right => "TouchpadSwipe5Right",
+        _ => "Unknown",
+    }
+    .to_string()
+}
+
 fn grab_allows_hot_corner(grab: &(dyn PointerGrab<State> + 'static)) -> bool {
     let grab = grab.as_any();
 
@@ -5012,6 +5076,7 @@ mod tests {
             hotkey_overlay_title: None,
                         sensitivity: None,
                         natural_scroll: false,
+                        tag: None,
         }]);
 
         let comp_mod = ModKey::Super;
@@ -5200,6 +5265,7 @@ mod tests {
                 hotkey_overlay_title: None,
                         sensitivity: None,
                         natural_scroll: false,
+                        tag: None,
             },
             Bind {
                 key: Key {
@@ -5214,6 +5280,7 @@ mod tests {
                 hotkey_overlay_title: None,
                         sensitivity: None,
                         natural_scroll: false,
+                        tag: None,
             },
             Bind {
                 key: Key {
@@ -5228,6 +5295,7 @@ mod tests {
                 hotkey_overlay_title: None,
                         sensitivity: None,
                         natural_scroll: false,
+                        tag: None,
             },
             Bind {
                 key: Key {
@@ -5242,6 +5310,7 @@ mod tests {
                 hotkey_overlay_title: None,
                         sensitivity: None,
                         natural_scroll: false,
+                        tag: None,
             },
             Bind {
                 key: Key {
@@ -5256,6 +5325,7 @@ mod tests {
                 hotkey_overlay_title: None,
                         sensitivity: None,
                         natural_scroll: false,
+                        tag: None,
             },
         ]);
 
